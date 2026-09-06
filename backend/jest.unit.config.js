@@ -31,6 +31,10 @@ module.exports = {
     '**/tests/unit/collegeDrivesUnifiedCandidate.test.js',
     '**/tests/unit/downloadStream.test.js',
     '**/tests/unit/driveDescription.test.js',
+    '**/tests/unit/leadImportSchema.test.js',
+    '**/tests/unit/passwordValidation.test.js',
+    '**/tests/unit/productImport.test.js',
+    '**/tests/unit/fileValidator.test.js',
   ],
   // NO globalSetup — these tests need no DB seeding
   testTimeout: 10000,

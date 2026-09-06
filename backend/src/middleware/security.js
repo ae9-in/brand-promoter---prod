@@ -5,6 +5,12 @@ function setSecurityHeaders(req, res, next) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+  // SEC-009: Add Content-Security-Policy and HSTS
+  // This is an API-only backend; a restrictive CSP prevents abuse if any HTML is ever served.
+  res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   next();
 }
 

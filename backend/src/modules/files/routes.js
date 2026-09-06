@@ -39,10 +39,27 @@ router.post("/profile-photo", upload.single("file"), asyncHandler(async (req, re
 // GET /api/files/:id — Serve a file by FileMeta ID (for profile photos etc.)
 router.get("/:id", asyncHandler(async (req, res) => {
   const fileMeta = await prisma.fileMeta.findUnique({
-    where: { id: req.params.id }
+    where: { id: req.params.id },
   });
 
   if (!fileMeta) throw new ApiError(404, "File not found");
+
+  // SEC-004: Enforce organization scope — prevent cross-tenant IDOR on file download.
+  // Resolve the uploader's org and compare against the requester's org.
+  const requesterOrgId = req.user.organizationId || 'defaultOrg';
+  if (fileMeta.uploadedById) {
+    const uploader = await prisma.user.findUnique({
+      where: { id: fileMeta.uploadedById },
+      select: { organizationId: true },
+    });
+    if (!uploader || uploader.organizationId !== requesterOrgId) {
+      throw new ApiError(403, "You do not have access to this file");
+    }
+  }
+  // If uploadedById is null (legacy/system files), allow access only to SUPER_ADMIN
+  else if (req.user.role !== 'SUPER_ADMIN') {
+    throw new ApiError(403, "You do not have access to this file");
+  }
 
   if (!fileMeta.fileData || fileMeta.fileData.length === 0) {
     throw new ApiError(404, "File data not found in database.");

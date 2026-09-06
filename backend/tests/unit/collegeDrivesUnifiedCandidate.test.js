@@ -112,7 +112,9 @@ describe('College Drives & All Candidates Bulk Upload Schemas', () => {
       expect(result.data.name).toBe('Arjun Kumar');
       expect(result.data.role).toBe('Trainee');
       expect(result.data.email).toBe('arjun@college.edu');
-      expect(result.data.phone).toBe('9876543210');
+      // Validator stores the full normalized phone (digits + leading +), NOT the 10-digit dedup key.
+      // normalizePhoneForDedup() is used separately for duplicate detection.
+      expect(result.data.phone).toBe('+919876543210');
       expect(result.data.resumeLinkRaw).toBeNull();
       expect(result.data.college).toBe('Bangalore University');
     });
@@ -130,7 +132,7 @@ describe('College Drives & All Candidates Bulk Upload Schemas', () => {
       expect(res.failureReason).toContain('is not a valid URL');
     });
 
-    test('College Drive context rejects row missing still-required fields (e.g. phone or email)', () => {
+    test('College Drive context rejects row missing still-required fields (only Name and phone)', () => {
       const noPhoneRow = {
         name: 'Arjun Kumar',
         role: 'Trainee',
@@ -141,14 +143,14 @@ describe('College Drives & All Candidates Bulk Upload Schemas', () => {
       expect(res1.valid).toBe(false);
       expect(res1.failureReason).toContain('missing required field "phone number"');
 
+      // Email is OPTIONAL in drive context — a row without email is valid
       const noEmailRow = {
         name: 'Arjun Kumar',
         role: 'Trainee',
         phone: '9876543210',
       };
       const res2 = validateCandidateRow(noEmailRow, 3, { isDriveContext: true });
-      expect(res2.valid).toBe(false);
-      expect(res2.failureReason).toContain('missing required field "e-mail"');
+      expect(res2.valid).toBe(true); // email not required in drive context
     });
 
     test('College Drive context normalizes optional resume link when valid URL is provided', () => {

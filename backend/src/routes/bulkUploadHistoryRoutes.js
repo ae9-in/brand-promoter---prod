@@ -14,6 +14,7 @@ const { auth, requireRoles } = require('../middleware/auth');
 const { getJobHistory, getJobById } = require('../lib/importJobRepository');
 const { undoImport } = require('../lib/bulkUploadUndo');
 const { getPreviewSession } = require('../lib/bulkUploadPreview');
+const { validateFile } = require('../utils/fileValidator');
 
 // Processors for confirmed execution
 const candidateProc = require('../jobs/bulkCandidateUpload.processor');
@@ -22,9 +23,19 @@ const offerProc = require('../jobs/bulkOfferLetterUpload.processor');
 const interviewProc = require('../jobs/bulkInterviewUpload.processor');
 const feedbackProc = require('../jobs/bulkFeedbackUpload.processor');
 
+// SEC-007: Add fileFilter so the preview endpoint validates type (CSV/XLSX only),
+// matching the protection applied in all other bulk upload routes.
 const upload = multer({
   dest: path.join(__dirname, '..', '..', 'uploads', 'temp_preview'),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024 }, // Match MAX_UPLOAD_BYTES
+  fileFilter: (req, file, cb) => {
+    try {
+      validateFile(file, 'bulkData');
+      cb(null, true);
+    } catch (err) {
+      cb(err);
+    }
+  },
 });
 
 /**
@@ -38,7 +49,9 @@ router.get('/history', auth, requireRoles(['SUPER_ADMIN', 'ADMIN']), async (req,
     const history = await getJobHistory(orgId, limit);
     res.json({ success: true, history });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    // SEC-012: Do not expose internal error details to clients
+    console.error('[BulkHistory] GET /history error:', err);
+    res.status(500).json({ success: false, message: 'Failed to retrieve upload history' });
   }
 });
 
@@ -54,7 +67,9 @@ router.get('/job/:jobId', auth, async (req, res) => {
     }
     res.json({ success: true, job });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    // SEC-012: Do not expose internal error details to clients
+    console.error('[BulkHistory] GET /job/:jobId error:', err);
+    res.status(500).json({ success: false, message: 'Failed to retrieve import job' });
   }
 });
 
@@ -73,7 +88,9 @@ router.delete('/undo/:jobId', auth, requireRoles(['SUPER_ADMIN', 'ADMIN']), asyn
     const statusCode = result.status || (result.success ? 200 : 400);
     res.status(statusCode).json(result);
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    // SEC-012: Do not expose internal error details to clients
+    console.error('[BulkHistory] DELETE /undo/:jobId error:', err);
+    res.status(500).json({ success: false, message: 'Failed to undo import job' });
   }
 });
 

@@ -93,6 +93,17 @@ function initErrorReport(jobId) {
 }
 
 /**
+ * SEC-010: Formula Injection / CSV Injection Sanitizer.
+ * Prefixes cells that begin with formula trigger characters (=, +, -, @, TAB, CR) with a
+ * single quote. This is the universally accepted defence for spreadsheet formula injection
+ * (aka CSV injection). Applied to all user-supplied string values written to report cells.
+ */
+function csvSafeString(val) {
+  const s = String(val ?? '');
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+}
+
+/**
  * Appends a row failure, duplicate warning, or soft warning to the job's report accumulator.
  * Rows are written to XLSX only on finalize (via finalizeErrorReport).
  *
@@ -131,7 +142,7 @@ function appendFailedRow(jobId, rowNumber, reason, severity = 'error', errorType
     row_number: rowNumber,
     severity: sevText,
     error_type: typeText,
-    reason: String(reason || ''),
+    reason: csvSafeString(reason || ''),
   });
 }
 

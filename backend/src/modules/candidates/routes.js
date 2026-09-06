@@ -25,6 +25,18 @@ const DEFAULT_COMPANY = 'Akshara Enterprises';
 
 const isSafeKey = (key) => key && key !== '__proto__' && key !== 'constructor' && key !== 'prototype';
 
+// SEC-003: SSRF guard — blocks RFC1918, loopback, link-local, and non-HTTP/S schemes.
+// Applied before every server-side fetch() of a user-supplied URL.
+const BLOCKED_HOST_RE = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|\[::1\]|fd[0-9a-f]{2}:)/i;
+function isSafeProxyUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    if (BLOCKED_HOST_RE.test(parsed.hostname)) return false;
+    return true;
+  } catch { return false; }
+}
+
 const router = express.Router();
 
 router.use(auth);
@@ -244,7 +256,8 @@ router.post(
     validateFile(req.file, 'bulkData');
 
     let allRows = [];
-    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    // SEC: Harden XLSX parsing — disable formulas (prevents ReDoS + prototype pollution CVEs)
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer", raw: false, cellFormula: false, bookVBA: false, bookFiles: false, defval: '' });
     for (const sheetName of workbook.SheetNames) {
       if (!isSafeKey(sheetName)) continue;
       const sheet = workbook.Sheets[sheetName];
@@ -1544,6 +1557,12 @@ router.get(
     });
     if (!candidate) throw new ApiError(404, 'Candidate not found');
 
+    // SEC-005: Enforce organization scope — prevent cross-tenant IDOR on resume download
+    const orgId = req.user.organizationId || 'defaultOrg';
+    if (candidate.organizationId !== orgId) {
+      throw new ApiError(403, 'You do not have access to this candidate\'s data');
+    }
+
     const downloadUrl = candidate.resumeLinkDownload || candidate.resumeLinkOriginal;
     if (!downloadUrl) {
       throw new ApiError(404, 'No resume link on file for candidate');
@@ -1570,6 +1589,11 @@ router.get(
       );
     }
 
+    // SEC-003: SSRF guard — reject internal/private network addresses before fetching
+    if (!isSafeProxyUrl(downloadUrl)) {
+      throw new ApiError(400, 'Resume link points to a disallowed address');
+    }
+
     let upstream;
     try {
       const controller = new AbortController();
@@ -1579,7 +1603,12 @@ router.get(
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      // Re-check final URL after redirects to catch redirect-based SSRF
+      if (upstream.url && !isSafeProxyUrl(upstream.url)) {
+        throw new ApiError(400, 'Resume link redirected to a disallowed address');
+      }
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       throw new ApiError(502, `Could not retrieve resume from source link: ${err.message}`);
     }
 

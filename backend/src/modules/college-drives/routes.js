@@ -428,7 +428,8 @@ router.post(
 
     let allRows = [];
     try {
-      const workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true, cellNF: false, cellText: false });
+      // SEC: Harden XLSX parsing — disable formulas (prevents ReDoS + prototype pollution)
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true, cellNF: false, cellText: false, cellFormula: false, bookVBA: false, bookFiles: false, defval: '' });
       for (const sheetName of workbook.SheetNames) {
         const worksheet = workbook.Sheets[sheetName];
         const sheetRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });

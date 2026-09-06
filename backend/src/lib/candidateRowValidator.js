@@ -39,17 +39,26 @@ function validateCandidateRow(rawRow, rowNumber, options = {}) {
   }
 
   const role = String(rawRow.role ?? '').trim() || null;
-  if (!role) {
+  // Role is required for All Candidates but optional for College Drive context
+  if (!isDriveContext && !role) {
     errors.push('missing required field "role"');
   }
 
   const emailRaw = String(rawRow.email ?? '').trim();
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw);
   let email = emailRaw || null;
-  if (!emailRaw) {
-    errors.push('missing required field "e-mail"');
-  } else if (!isEmailValid) {
-    errors.push(`invalid required field "e-mail": "${emailRaw}" is not a valid email address`);
+  if (!isDriveContext) {
+    // Email is required for All Candidates
+    if (!emailRaw) {
+      errors.push('missing required field "e-mail"');
+    } else if (!isEmailValid) {
+      errors.push(`invalid required field "e-mail": "${emailRaw}" is not a valid email address`);
+    }
+  } else {
+    // Email is optional for College Drive — validate format only if present
+    if (emailRaw && !isEmailValid) {
+      errors.push(`invalid field "e-mail": "${emailRaw}" is not a valid email address`);
+    }
   }
 
   const phoneRaw = String(rawRow.phone ?? '').trim();

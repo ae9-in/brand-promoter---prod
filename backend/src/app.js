@@ -71,7 +71,8 @@ app.use(
       }
       if (
         /^https:\/\/brand-promoter-prod-.*\.vercel\.app$/.test(origin) ||
-        /^http:\/\/localhost:\d+$/.test(origin)
+        // SEC-008: Only allow localhost origins in non-production environments
+        (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost:\d+$/.test(origin))
       ) {
         return callback(null, true);
       }

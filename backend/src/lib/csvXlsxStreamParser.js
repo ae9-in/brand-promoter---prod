@@ -116,7 +116,19 @@ function parseCsvFile(filePath, rowCallback) {
  * XLSX file parser (using raw: false to ensure text cell extraction)
  */
 async function parseXlsxFile(filePath, rowCallback) {
-  const workbook = XLSX.readFile(filePath, { raw: false, cellDates: true, cellText: true });
+  // SEC: Harden XLSX parsing against known vulnerabilities in SheetJS community edition:
+  // - GHSA-4r6h-8v6p-xvw6 (prototype pollution): use defval + raw:false, never eval formulas
+  // - GHSA-5pgg-2g8v-p4x9 (ReDoS): cellFormula:false disables the ReDoS-vulnerable formula parsing
+  const workbook = XLSX.readFile(filePath, {
+    raw: false,       // Always extract cell text, not raw numbers
+    cellDates: true,  // Parse date cells as Date objects
+    cellText: true,   // Include formatted text for all cell types
+    cellFormula: false, // SEC: disable formula parsing (prevents formula-injection + ReDoS)
+    bookVBA: false,   // SEC: do not load VBA macros
+    bookFiles: false, // SEC: do not extract embedded file blobs
+    sheetStubs: false, // SEC: do not create stub cells for missing ranges
+    defval: '',       // Default empty cells to '' to avoid Object prototype leakage
+  });
   const sheetNames = workbook.SheetNames || [];
 
   if (sheetNames.length === 0) {

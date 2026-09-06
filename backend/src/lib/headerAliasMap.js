@@ -14,6 +14,10 @@ const HEADER_ALIASES = {
   'role': 'role',
   'position': 'role',
   'job role': 'role',
+  'preferred role': 'role',
+  'preferred_role': 'role',
+  'preferredrole': 'role',
+  'preferred job role': 'role',
 
   'e-mail': 'email',
   'email': 'email',
